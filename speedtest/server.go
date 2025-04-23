@@ -296,8 +296,6 @@ func (s *Speedtest) FetchServerListContext(ctx context.Context) (Servers, error)
 			var errPing error
 			if s.config.PingMode == TCP {
 				latency, errPing = gs.TCPPing(pCtx, 1, time.Millisecond, nil)
-			} else if s.config.PingMode == ICMP {
-				latency, errPing = gs.ICMPPing(pCtx, 4*time.Second, 1, time.Millisecond, nil)
 			} else {
 				latency, errPing = gs.HTTPPing(pCtx, 1, time.Millisecond, nil)
 			}

@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"net/url"
 	"path"
-	"strings"
 	"sync/atomic"
 	"time"
 )
@@ -214,8 +213,6 @@ func (s *Server) PingTestContext(ctx context.Context, callback func(latency time
 	var vectorPingResult []int64
 	if s.Context.config.PingMode == TCP {
 		vectorPingResult, err = s.TCPPing(ctx, 10, time.Millisecond*200, callback)
-	} else if s.Context.config.PingMode == ICMP {
-		vectorPingResult, err = s.ICMPPing(ctx, time.Second*4, 10, time.Millisecond*200, callback)
 	} else {
 		vectorPingResult, err = s.HTTPPing(ctx, 10, time.Millisecond*200, callback)
 	}
@@ -264,7 +261,7 @@ func (s *Server) TCPPing(
 		pingDst = s.Host
 	}
 	failTimes := 0
-	client, err := transport.NewClient(s.Context.tcpDialer)
+	client, err := transport.NewClient(s.Context.dialFunc)
 	if err != nil {
 		return nil, err
 	}
@@ -350,97 +347,6 @@ func (s *Server) HTTPPing(
 }
 
 const PingTimeout = -1
-const echoOptionDataSize = 32 // `echoMessage` need to change at same time
-
-// ICMPPing privileged method
-func (s *Server) ICMPPing(
-	ctx context.Context,
-	readTimeout time.Duration,
-	echoTimes int,
-	echoFreq time.Duration,
-	callback func(latency time.Duration),
-) (latencies []int64, err error) {
-	u, err := url.ParseRequestURI(s.URL)
-	if err != nil || len(u.Host) == 0 {
-		return nil, err
-	}
-	dbg.Printf("Echo: %s\n", strings.Split(u.Host, ":")[0])
-	dialContext, err := s.Context.ipDialer.DialContext(ctx, "ip:icmp", strings.Split(u.Host, ":")[0])
-	if err != nil {
-		return nil, err
-	}
-	defer dialContext.Close()
-
-	ICMPData := make([]byte, 8+echoOptionDataSize) // header + data
-	ICMPData[0] = 8                                // echo
-	ICMPData[1] = 0                                // code
-	ICMPData[2] = 0                                // checksum
-	ICMPData[3] = 0                                // checksum
-	ICMPData[4] = 0                                // id
-	ICMPData[5] = 1                                // id
-	ICMPData[6] = 0                                // seq
-	ICMPData[7] = 1                                // seq
-
-	var echoMessage = "Hi! SpeedTest-Go \\(●'◡'●)/"
-
-	for i := 0; i < len(echoMessage); i++ {
-		ICMPData[7+i] = echoMessage[i]
-	}
-
-	failTimes := 0
-	for i := 0; i < echoTimes; i++ {
-		ICMPData[2] = byte(0)
-		ICMPData[3] = byte(0)
-
-		ICMPData[6] = byte(1 >> 8)
-		ICMPData[7] = byte(1)
-		ICMPData[8+echoOptionDataSize-1] = 6
-		cs := checkSum(ICMPData)
-		ICMPData[2] = byte(cs >> 8)
-		ICMPData[3] = byte(cs)
-
-		sTime := time.Now()
-		_ = dialContext.SetDeadline(sTime.Add(readTimeout))
-		_, err = dialContext.Write(ICMPData)
-		if err != nil {
-			failTimes += echoTimes - i
-			break
-		}
-		buf := make([]byte, 20+echoOptionDataSize+8)
-		_, err = dialContext.Read(buf)
-		if err != nil || buf[20] != 0x00 {
-			failTimes++
-			continue
-		}
-		endTime := time.Since(sTime)
-		latencies = append(latencies, endTime.Nanoseconds())
-		dbg.Printf("1RTT: %s\n", endTime)
-		if callback != nil {
-			callback(endTime)
-		}
-		time.Sleep(echoFreq)
-	}
-	if failTimes == echoTimes {
-		return nil, ErrConnectTimeout
-	}
-	return
-}
-
-func checkSum(data []byte) uint16 {
-	var sum uint32
-	var length = len(data)
-	var index int
-	for length > 1 {
-		sum += uint32(data[index])<<8 + uint32(data[index+1])
-		index += 2
-		length -= 2
-	}
-	if length > 0 {
-		sum += uint32(data[index])
-	}
-	sum += sum >> 16
-	return uint16(^sum)
-}
 
 func StandardDeviation(vector []int64) (mean, variance, stdDev, min, max int64) {
 	if len(vector) == 0 {

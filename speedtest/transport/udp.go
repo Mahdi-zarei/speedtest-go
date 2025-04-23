@@ -23,17 +23,17 @@ type PacketLossSender struct {
 	conn          net.Conn // UDP Conn
 	raw           []byte
 	host          string
-	dialer        *net.Dialer
+	dialFunc      func(ctx context.Context, network string, address string) (net.Conn, error)
 }
 
-func NewPacketLossSender(uuid string, dialer *net.Dialer) (*PacketLossSender, error) {
+func NewPacketLossSender(uuid string, dialFunc func(ctx context.Context, network string, address string) (net.Conn, error)) (*PacketLossSender, error) {
 	rd := mrand.New(mrand.NewSource(time.Now().UnixNano()))
 	nounce := rd.Int63n(10000000000)
 	p := &PacketLossSender{
 		ID:            strings.ToUpper(uuid),
 		nounce:        nounce,
 		withTimestamp: false, // we close it as default, we won't be able to use it right now.
-		dialer:        dialer,
+		dialFunc:      dialFunc,
 	}
 	p.raw = []byte(fmt.Sprintf("%s %d %s %s", loss, nounce, "#", uuid))
 	return p, nil
@@ -41,7 +41,7 @@ func NewPacketLossSender(uuid string, dialer *net.Dialer) (*PacketLossSender, er
 
 func (ps *PacketLossSender) Connect(ctx context.Context, host string) (err error) {
 	ps.host = host
-	ps.conn, err = ps.dialer.DialContext(ctx, "udp", ps.host)
+	ps.conn, err = ps.dialFunc(ctx, "udp", ps.host)
 	return err
 }
 

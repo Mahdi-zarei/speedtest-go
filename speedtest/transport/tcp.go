@@ -38,19 +38,19 @@ type Client struct {
 	host    string
 	version string
 
-	dialer *net.Dialer
+	dialFunc func(ctx context.Context, network string, address string) (net.Conn, error)
 
 	reader *bufio.Reader
 }
 
-func NewClient(dialer *net.Dialer) (*Client, error) {
+func NewClient(dialFunc func(ctx context.Context, network string, address string) (net.Conn, error)) (*Client, error) {
 	uuid, err := generateUUID()
 	if err != nil {
 		return nil, err
 	}
 	return &Client{
-		id:     uuid,
-		dialer: dialer,
+		id:       uuid,
+		dialFunc: dialFunc,
 	}, nil
 }
 
@@ -60,7 +60,7 @@ func (client *Client) ID() string {
 
 func (client *Client) Connect(ctx context.Context, host string) (err error) {
 	client.host = host
-	client.conn, err = client.dialer.DialContext(ctx, "tcp", client.host)
+	client.conn, err = client.dialFunc(ctx, "tcp", client.host)
 	if err != nil {
 		return err
 	}
@@ -80,7 +80,8 @@ func (client *Client) Write(data []byte) (err error) {
 	if client.conn == nil {
 		return ErrEmptyConn
 	}
-	_, err = fmt.Fprintf(client.conn, "%s\n", data)
+	data = append(data, '\n')
+	_, err = client.conn.Write(data)
 	return
 }
 

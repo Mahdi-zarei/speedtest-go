@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/showwin/speedtest-go/speedtest/transport"
+	"github.com/Mahdi-zarei/speedtest-go/speedtest/transport"
 	"io"
 	"math"
 	"net/http"

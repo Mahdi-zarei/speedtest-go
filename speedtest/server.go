@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/showwin/speedtest-go/speedtest/transport"
+	"github.com/Mahdi-zarei/speedtest-go/speedtest/transport"
 )
 
 const (

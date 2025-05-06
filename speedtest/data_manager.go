@@ -180,7 +180,7 @@ func (td *TestDirection) AddTotalDataVolume(delta int64) int64 {
 	return atomic.AddInt64(&td.totalDataVolume, delta)
 }
 
-func (td *TestDirection) Start(cancel context.CancelFunc, mainRequestHandlerIndex int) {
+func (td *TestDirection) Start(ctx context.Context, cancel context.CancelFunc, mainRequestHandlerIndex int) {
 	if len(td.fns) == 0 {
 		panic("empty task stack")
 	}
@@ -206,11 +206,13 @@ func (td *TestDirection) Start(cancel context.CancelFunc, mainRequestHandlerInde
 	stopCapture := td.rateCapture()
 
 	// refresh once function
+	done := make(chan struct{})
 	once := sync.Once{}
 	td.closeFunc = func() {
 		once.Do(func() {
 			stopCapture <- true
 			close(stopCapture)
+			close(done)
 			td.manager.runningRW.Lock()
 			td.manager.running = false
 			td.manager.runningRW.Unlock()
@@ -218,6 +220,15 @@ func (td *TestDirection) Start(cancel context.CancelFunc, mainRequestHandlerInde
 			dbg.Println("FuncGroup: Stop")
 		})
 	}
+
+	go func() {
+		select {
+		case <-ctx.Done():
+			td.closeFunc()
+		case <-done:
+			return
+		}
+	}()
 
 	time.AfterFunc(td.manager.captureTime, td.closeFunc)
 	for i := 0; i < mainN; i++ {

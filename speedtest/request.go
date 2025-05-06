@@ -55,7 +55,7 @@ func (s *Server) MultiDownloadTestContext(ctx context.Context, servers Servers) 
 	if td == nil {
 		return ErrorUninitializedManager
 	}
-	td.Start(cancel, mainIDIndex) // block here
+	td.Start(ctx, cancel, mainIDIndex) // block here
 	s.DLSpeed = ByteRate(td.manager.GetEWMADownloadRate())
 	if s.DLSpeed == 0 && float64(errorTimes)/float64(requestTimes) > 0.1 {
 		s.DLSpeed = -1 // N/A
@@ -90,7 +90,7 @@ func (s *Server) MultiUploadTestContext(ctx context.Context, servers Servers) er
 	if td == nil {
 		return ErrorUninitializedManager
 	}
-	td.Start(cancel, mainIDIndex) // block here
+	td.Start(ctx, cancel, mainIDIndex) // block here
 	s.ULSpeed = ByteRate(td.manager.GetEWMAUploadRate())
 	if s.ULSpeed == 0 && float64(errorTimes)/float64(requestTimes) > 0.1 {
 		s.ULSpeed = -1 // N/A
@@ -118,7 +118,7 @@ func (s *Server) downloadTestContext(ctx context.Context, downloadRequest downlo
 		if err := downloadRequest(_context, s, 3); err != nil {
 			atomic.AddInt64(&errorTimes, 1)
 		}
-	}).Start(cancel, 0)
+	}).Start(ctx, cancel, 0)
 	duration := time.Since(start)
 	s.DLSpeed = ByteRate(s.Context.GetEWMADownloadRate())
 	if s.DLSpeed == 0 && float64(errorTimes)/float64(requestTimes) > 0.1 {
@@ -149,7 +149,7 @@ func (s *Server) uploadTestContext(ctx context.Context, uploadRequest uploadFunc
 		if err := uploadRequest(_context, s, 4); err != nil {
 			atomic.AddInt64(&errorTimes, 1)
 		}
-	}).Start(cancel, 0)
+	}).Start(ctx, cancel, 0)
 	duration := time.Since(start)
 	s.ULSpeed = ByteRate(s.Context.GetEWMAUploadRate())
 	if s.ULSpeed == 0 && float64(errorTimes)/float64(requestTimes) > 0.1 {
